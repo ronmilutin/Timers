@@ -1,0 +1,226 @@
+#include  "bsp_lab5.h"
+;-------------------------------------------------------------------------------
+;      MACRO 16x16 Unsigned Divider: 
+;      Quotient = Divided/Divisor , Remainder=Divided/Divisor
+;-------------------------------------------------------------------------------
+DIV16bit        MACRO   Divided,Divisor,Quotient,Remainder
+                LOCAL   L1,L2,L3
+                mov     #17,R9
+                clr     R8                ; Quotient register
+                mov.w   Divided,R4        ; Devided registers is R5,R4
+                clr     R5
+                mov.w   Divisor,R6        ; Divisor registers is R6
+                
+L3              rla     R8
+L1              dec     R9
+                jz      L2
+                rla     R4
+                rlc     R5
+                cmp     R6,R5
+                jlo     L3
+                sub     R6,R5
+                setc
+                rlc     R8
+                jmp     L1
+                
+L2              mov.w   R8,Quotient
+                mov.w   R5,Remainder
+                ENDM 
+;---------------------------------------------------------------
+Lcd_cmd      MACRO command
+             push    #delay15ms
+             call    #delay
+             mov.b   command, LCDdata
+             call    #Lcd_strobe
+             ENDM
+;---------------------------------------------------------------
+
+              MODULE     HAL
+              PUBLIC     SysConfig,PORT2_ISR,Lcd_print,T0_ISR,delay,Lcd_strobe,T1_ISR
+              EXTERN     GPIOconfig,State,state0,TIMERconfig,ADCconfig,sec0,sec1,result
+              EXTERN     unit,ten,hund,thousand,ten_thousand,remain
+;----------------------------------------------------------------
+              RSEG CODE
+;----------------------------------------------------------------
+SysConfig    call   #GPIOconfig
+             call   #TIMERconfig
+             call   #ADCconfig
+             call   #LCDsetup
+             
+             ret
+;----------------------------------------------------------------
+LCDsetup     bic.b   #0xE0, LCDcon   ; clear control legs
+             push    #delay15ms
+             call    #delay
+             mov.b   #0x3F, LCDdata
+             call    #Lcd_strobe
+             push    #delay5ms
+             call    #delay
+             mov.b   #0x3F, LCDdata
+             call    #Lcd_strobe
+             push    #delay200us
+             call    #delay
+             mov.b   #0x3F, LCDdata
+             call    #Lcd_strobe    
+             Lcd_cmd #0x3C
+             Lcd_cmd #0x0F
+             Lcd_cmd #0x01
+             Lcd_cmd #0x06
+             Lcd_cmd #0x80
+             Lcd_cmd #0x02
+             ret
+;----------------------------------------------------------------
+Lcd_strobe  bis.b  #LCDE, LCDcon 
+            nop
+            nop
+            bic.b  #LCDE, LCDcon
+            ret
+;------------------------------------------------------------------------------
+Lcd_print   pop   R4
+            pop   R5
+            
+            push  #delay5ms
+            call  #delay
+            mov.b #0,LCDdata
+            bis.b #LCDRS,LCDcon
+            mov.b R5,LCDdata
+            call  #Lcd_strobe
+            bic.b #LCDRS,LCDcon
+            
+            push R4
+            ret
+;----------------------------------------------------------------
+PORT2_ISR      push     #debounceVal
+               call     #delay
+               bit.b    #PB0, PB_IFG   ; looks for flags, checks the bit of input
+               jnz      P2_0
+               bit.b    #PB1, PB_IFG
+               jnz      P2_1
+               reti
+           
+P2_0           mov    #1,State
+               bic.w   #TASSEL_2+ID_3+MC_2+TAIFG+TAIE,Timer1con  ;             
+               bic.w   #CCIS_0+CAP+CM_1+CCIE,Timer1conCC2
+             
+               jmp    exitLPM0
+P2_1           mov    #2,State
+               bic.w  #CCIE,TimerAconC0
+               jmp    exitLPM0                
+
+
+exitLPM0       bic    #CPUOFF,0(SP)        ; Exit LMP0
+               bic.b  #0xff,PB_IFG
+               reti
+;-------------------------------------------------------------------------------
+T0_ISR      
+
+LCD_dec      dec.b  sec0
+             cmp.b  #0x2F,sec0
+             jne    printTIME
+             cmp.b  #0x30,sec1
+             jne L1
+             bic.w   #CCIE,TimerAconC0    ;stop Timer interupt
+             mov.b   #0,State
+             reti
+L1           mov.b  #0x39,sec0
+             dec.b  sec1
+             jne    printTIME
+             cmp.b  #0x30,sec0
+             jne    printTIME
+             
+             
+printTIME    Lcd_cmd #0x01
+             Lcd_cmd #0x02
+             push #0x30
+             call  #Lcd_print
+             push #0x30
+             call  #Lcd_print
+             push #0x3A
+             call  #Lcd_print
+             push sec1
+             call  #Lcd_print
+             push sec0
+             call  #Lcd_print
+             reti
+
+;-------------------------------------------------------------------------------
+T1_ISR      dec    R12
+            jz final
+            
+            cmp    #OverA,clockIFG
+            jz     overflow
+            
+            mov     TimerCCR2,R15
+            sub     R14,R15
+            mov    TimerCCR2,R14
+            reti
+            
+final       DIV16bit #0x8000,R15,R10,R11
+            rla     R10
+            rla     R10
+            call    #printFREQ
+            mov #100,R12
+            nop          
+            reti
+            
+overflow    mov     TimerCCR2,R15
+            mov     #0xffff,R11
+            sub     R14,R11
+            add     R11,R15
+            mov    TimerCCR2,R14
+            clr    TimerIFG
+            reti
+            
+;-------------------------------------------------------------------------------            
+printFREQ   DIV16bit R10,#0x000a,remain,unit
+            DIV16bit remain,#0x000a,remain,ten
+            DIV16bit remain,#0x000a,remain,hund
+            DIV16bit remain,#0x000a,remain,thousand
+            DIV16bit remain,#0x000a,remain,ten_thousand
+            
+            add  #0x30,unit
+            add  #0x30,ten
+            add  #0x30,hund
+            add  #0x30,thousand
+            add  #0x30,ten_thousand
+            
+            Lcd_cmd #0xC0
+            
+             push ten_thousand
+             call  #Lcd_print
+             push thousand
+             call  #Lcd_print
+             push hund
+             call  #Lcd_print
+             push ten
+             call  #Lcd_print
+             push unit
+             call  #Lcd_print  
+             push #'['
+             call  #Lcd_print 
+             push #'H'
+             call  #Lcd_print 
+             push #'Z'
+             call  #Lcd_print 
+             push #']'
+             call  #Lcd_print 
+             
+             
+             
+             ret
+;-------------------------------------------------------------------------------            
+      
+;-------------------------------------------------------------------------------
+delay        pop  R6
+             pop  R7
+             
+LD           dec.w R7
+             jnz  LD
+             
+             push R6
+             ret
+;-------------------------------------------------------------------------------
+               ENDMOD      
+               END
+;-------------------------------------------------------------------------------
+              

@@ -1,0 +1,52 @@
+#include  "bsp_lab5.h"
+
+              MODULE     BSP
+              PUBLIC     GPIOconfig,,TIMERconfig,ADCconfig  
+              
+;--------------------------------------------------------------------------------------              
+              RSEG       CODE
+;--------------------------------------------------------------------------------------           
+GPIOconfig
+         
+StopWDT  mov.w   #WDTPW+WDTHOLD,&WDTCTL
+
+         ; PB Setup
+         bic.b   #0x03, PB_SEL   
+         bic.b   #0x03, PB_DIR    
+         bis.b   #0x03, PB_IES
+         bis.b   #0x03, PB_IE
+         bic.b   #0x0f, PB_IFG   
+         
+         ; LCD Setup
+         bic.b   #0xFF,LCDdataSel 
+         bis.b   #0xFF,LCDdataDir 
+         bic.b   #0xE0,LCDconSel
+         bis.b   #0xE0,LCDconDir
+         
+         ; input Setup
+         bis.b   #0x18, PB_SEL   
+         bic.b   #0x18, PB_DIR 
+
+         ret
+;------------------------------------------------------------------------------------- 
+;            Timers congiguration 
+;-------------------------------------------------------------------------------------
+TIMERconfig 
+SetupC0      bic.w   #CCIE,TimerAconC0 ; TACCR0 interrupt disabled
+             
+             mov.w   #0xFFFF,&CCR0 
+SetupTA      mov.w   #TASSEL_2+ID_3+MC_3,&TACTL  ;smclk, up down mode
+         
+
+            ret
+;-------------------------------------------------------------------------------------- 
+;            ADC congiguration 
+;--------------------------------------------------------------------------------------
+ADCconfig
+            nop ; write here ADC congiguration code
+
+            ret
+;--------------------------------------------------------------------------------------                      
+         ENDMOD
+         END
+;--------------------------------------------------------------------------------------

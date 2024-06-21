@@ -1,0 +1,64 @@
+#include  "bsp_lab5.h"
+
+              NAME       Main
+              PUBLIC     Main
+              PUBLIC     State
+              PUBLIC     unit,ten,hund,thousand,ten_thousand,remain
+              EXTERN     Func1,Func2,PORT2_ISR,SysConfig,T0_ISR,T1_ISR
+              
+;--------------------------------------------------------------- 
+              ORG RAM
+State         DW         0
+unit          DW         0
+ten           DW         0
+hund          DW         0
+thousand      DW         0
+ten_thousand  DW         0
+remain        DW         0
+              
+;---------------------------------------------------------------              
+              RSEG   CSTACK
+              RSEG   CODE
+;---------------------------------------------------------------   
+Main          mov.w   #SFE(CSTACK),SP                  ; Initialize stackpointer
+              call    #SysConfig
+              
+;-----------------------FSM_loop-------------------------------                           
+state0       cmp     #0,State         ;check if state0           
+             jnz     state1
+sleep        bis.w   #CPUOFF+GIE,SR
+             nop
+
+state1       cmp     #1,State         ;check if state1
+             jnz     state2
+             DINT             
+             call    #Func1           ;infinite function  
+             EINT
+             clr.b   PB_IFG
+             mov     #0,State
+             
+state2       cmp     #2,State         ;check if state2
+             jnz     state0
+             DINT             
+             call    #Func2           ;infinite function
+             EINT
+             clr.b   PB_IFG
+             mov     #0,State
+             jmp     state0
+            
+             
+     
+;---------------------------------------------------------------           
+              COMMON  INTVEC     ; Interrupt Vectors
+;--------------------------------------------------------------- 
+              ORG     PORT2_VECTOR            ;PORT2 Interrupt Vector Address 0xFFE2
+              DW      PORT2_ISR
+              ORG     RESET_VECTOR 
+              DW      Main
+              ORG     Timer0        /* 0xFFF2 Timer0_A CC0 */
+              DW      T0_ISR
+            
+              ORG     Timer1        /* 0xFFF2 Timer1_A CC0 */
+              DW      T1_ISR
+              END            
+;---------------------------------------------------------------  

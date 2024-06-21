@@ -1,0 +1,80 @@
+#include  "bsp_lab5.h"
+;---------------------------------------------------------------
+Lcd_cmd      MACRO command
+             push    #delay15ms
+             call    #delay
+             mov.b   command, LCDdata
+             call    #Lcd_strobe
+             ENDM
+;---------------------------------------------------------------
+
+              MODULE     API
+              PUBLIC     Func1,Func2
+              EXTERN     SysConfig
+              EXTERN     Lcd_print,Lcd_strobe,delay
+              
+;---------------------------------------------------------------             
+             RSEG       CODE
+;---------------------------------------------------------------  
+Func1        mov.b   #0x30,sec0
+             mov.b   #0x30,sec1
+             Lcd_cmd #0x01
+             Lcd_cmd #0x02
+             push   #0x30
+             call   #Lcd_print
+             push   #0x31
+             call   #Lcd_print
+             push   #0x3A
+             call   #Lcd_print
+             push   sec0
+             call   #Lcd_print
+             push   sec1
+             call   #Lcd_print
+             mov.b  #0x3A,sec0
+             mov.b  #0x35,sec1
+             bis.w  #CCIE,TimerAconC0 ; TACCR0 interrupt enabled 
+             ret
+             
+;---------------------------------------------------------------             
+Func2        Lcd_cmd #0x01
+             Lcd_cmd #0x02
+             push   #'M'
+             call   #Lcd_print
+             push   #'e'
+             call   #Lcd_print
+             push   #'a'
+             call   #Lcd_print
+             push   #'s'
+             call   #Lcd_print
+             push   #'u'
+             call   #Lcd_print
+             push   #'r'
+             call   #Lcd_print
+             push   #'e'
+             call   #Lcd_print
+             push   #' '
+             call   #Lcd_print
+             push   #'F'
+             call   #Lcd_print
+             push   #'r'
+             call   #Lcd_print
+             push   #'e'
+             call   #Lcd_print
+             push   #'q'
+             call   #Lcd_print
+             push   #':'
+             call   #Lcd_print
+             Lcd_cmd #0xC0
+             
+             bis.w   #TimerSEL+ID_3+MC_2+TimerIFG+TimerIE,Timer1con  ;Set TimerB- SMCLK div8 Continuse mode overflow IFG          
+             bis.w   #CCIS_0+CAP+CM_1+CCIE,Timer1conCC2              ;Set Captare Mode
+             
+             mov #100,R12
+             RET
+
+;---------------------------------------------------------------              
+;---------------------------------------------------------------              
+             ENDMOD 
+             END
+;--------------------------------------------------------------- 
+           
